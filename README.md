@@ -1,6 +1,6 @@
 # AirSensor
 
-A multi-room air quality monitor built around ESPHome and Home Assistant. Three units are deployed, each sitting flush on the wall like a light switch — mains powered, fully self-contained, nothing to charge or manage.
+A multi-room air quality monitor built around ESPHome and Home Assistant. Each unit sits flush on the wall like a light switch — mains powered, fully self-contained, nothing to charge or manage.
 
 ![AirSensor unit installed on the wall](Pic.jpeg)
 
@@ -33,7 +33,7 @@ The display shows:
 - A large **status word** (EXCELLENT / GOOD / FAIR / POOR / VERY POOR) at the centre
 - An **animated fan graphic** as the background (see below)
 
-The status LED on the XIAO also breathes in the AQI colour, visible from across the room without looking at the display.
+The XIAO's built-in RGB LED *(optional)* breathes in the AQI colour — green through red depending on air quality — visible from across the room without looking at the display. It can be enabled or disabled from Home Assistant and the state persists across reboots.
 
 ---
 
@@ -47,15 +47,15 @@ A **Fan Speed** entity (Off / Low / High) is exposed in Home Assistant. Selectin
 
 | Component | Role |
 |-----------|------|
-| Seeed XIAO ESP32-C3 *(unit -000)* | MCU — different GPIO layout, otherwise identical firmware |
-| Seeed XIAO ESP32-C6 *(units -001, -002)* | MCU — preferred variant; Wi-Fi 6, potential Matter support |
+| Seeed XIAO ESP32-C3 | MCU — different GPIO layout, otherwise identical firmware |
+| Seeed XIAO ESP32-C6 | MCU — preferred variant; Wi-Fi 6, Matter-capable radio |
 | Sensirion SEN55 | Particulate matter + VOC + NOx + T/RH |
 | Sensirion SCD4x | CO2 + T/RH |
 | Infineon DPS310 breakout | Barometric pressure *(fitted on -000 only)* |
 | GC9A01A 240×240 round TFT | Round display (AliExpress) |
 | Kradex Z123_W | Enclosure — standard wall-mount junction box |
 
-The ESP32-C6 variant is the target going forward. Its Wi-Fi 6 support and BLE 5.3 stack make it a candidate for Matter integration once ESPHome's Matter support matures.
+The ESP32-C6 is the preferred variant. Its Wi-Fi 6 and IEEE 802.15.4 radio make it hardware-ready for Matter once ESPHome's Matter support matures. The C3 lacks the necessary radio and cannot support Matter.
 
 ---
 
@@ -87,10 +87,9 @@ Each unit exposes the following entities:
 
 | | ESP32-C3 | ESP32-C6 |
 |-|----------|----------|
-| Units | -000 | -001, -002 |
 | Wi-Fi | 802.11 b/g/n | 802.11 b/g/n/ax (Wi-Fi 6) |
 | BLE | 5.0 | 5.3 |
-| Matter (future) | Unlikely | Planned |
+| Matter (future) | No — hardware limitation | Yes — IEEE 802.15.4 radio |
 | GPIO | Different pinout | Reference pinout |
 
 Two reference templates are provided — `ESPHome_config/AirSensor-C3.yaml` and `AirSensor-C6.yaml` — covering both variants. Real deployment configs live in `ESPHome_config/private/` (gitignored).
