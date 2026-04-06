@@ -51,7 +51,7 @@ A **Fan Speed** entity (Off / Low / High) is exposed in Home Assistant. Selectin
 | Seeed XIAO ESP32-C6 | MCU — preferred variant; Wi-Fi 6, Matter-capable radio |
 | Sensirion SEN55 | Particulate matter + VOC + NOx + T/RH |
 | Sensirion SCD4x | CO2 + T/RH |
-| Infineon DPS310 breakout | Barometric pressure *(fitted on -000 only)* |
+| Infineon DPS310 breakout | Barometric pressure *(optional)* |
 | GC9A01A 240×240 round TFT | Round display (AliExpress) |
 | Kradex Z123_W | Enclosure — standard wall-mount junction box |
 
