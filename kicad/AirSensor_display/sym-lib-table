@@ -1,0 +1,5 @@
+(sym_lib_table
+  (version 7)
+  (lib (name "AirSensor")(type "KiCad")(uri "${KIPRJMOD}/../../lib/symbols/AirSensor_symbols.kicad_sym")(options "")(descr ""))
+  (lib (name "MOUDLE-SEEEDUINO-XIAO-ESP32C3")(type "KiCad")(uri "${KIPRJMOD}/../../lib/symbols/MOUDLE-SEEEDUINO-XIAO-ESP32C3.kicad_sym")(options "")(descr ""))
+)

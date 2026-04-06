@@ -1,0 +1,6 @@
+# ESPHome build cache — never commit.
+/.esphome/
+
+# Real secrets — never commit.
+/secrets.yaml
+/private/

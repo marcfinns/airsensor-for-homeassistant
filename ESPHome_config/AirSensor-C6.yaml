@@ -1,0 +1,573 @@
+# =============================================================================
+# AirSensor — Reference implementation for Seeed XIAO ESP32-C6
+#
+# MCU     : Seeed XIAO ESP32-C6
+# Sensors : SEN55 (PM1/2.5/4/10, VOC, NOx, T, RH)
+#           SCD4x (CO2, T, RH)
+# Display : GC9A01A 240×240 round TFT (SPI)
+#
+# To create a new unit from this template:
+#   1. Copy to private/<unit-name>.yaml
+#   2. Replace every value marked  ← CONFIGURE
+#   3. Fill in private/secrets.yaml
+# =============================================================================
+
+esphome:
+  name: airsensor-xxx            # ← CONFIGURE: unique lowercase device name
+  friendly_name: Air Sensor XXX  # ← CONFIGURE: display name shown in HA
+  includes:
+    - ../airsensor_aqi_helpers.h   # AQI level/colour helpers shared by all units
+  on_boot:
+    # Priority -100 runs after all components are initialised.
+    # Clears the boot-phase flag so the LED switch can start persisting state,
+    # then publishes the restored LED enabled value to sync the HA entity.
+    - priority: -100
+      then:
+        - lambda: |-
+            id(g_boot_phase) = false;
+            id(led_switch).publish_state(id(g_led_enabled));
+
+# ---------------------------------------------------------------------------
+# PREFERENCES
+# ---------------------------------------------------------------------------
+# Disable the automatic delayed-write to NVS flash.  Preference values
+# (e.g. g_led_enabled) are written immediately when changed instead of
+# being batched.  Keeps state reliable at the cost of slightly more flash
+# wear on every toggle — acceptable given the low toggle frequency.
+preferences:
+  flash_write_interval: 0s
+
+# ---------------------------------------------------------------------------
+# MCU / FRAMEWORK
+# ---------------------------------------------------------------------------
+# ESP32-C6 — note different GPIO numbering compared to the C3 variant.
+esp32:
+  board: seeed_xiao_esp32c6
+  variant: ESP32C6
+  framework:
+    type: esp-idf
+
+# ---------------------------------------------------------------------------
+# LOGGING
+# ---------------------------------------------------------------------------
+logger:
+  level: INFO
+
+# ---------------------------------------------------------------------------
+# API / HOME ASSISTANT
+# ---------------------------------------------------------------------------
+api:
+  encryption:
+    key: !secret api_encryption_key
+
+# Time source from Home Assistant (used for display)
+time:
+  - platform: homeassistant
+    id: ha_time
+
+# ---------------------------------------------------------------------------
+# BLE / PROXY
+# ---------------------------------------------------------------------------
+# Kept for reference — disabled because enabling BLE on ESP32-C6 alongside
+# Wi-Fi and a fast SPI display causes interference and CPU contention.
+# bluetooth_proxy:
+#   active: true
+#
+# esp32_ble_tracker:
+#   scan_parameters:
+#     interval: 1100ms
+#     window: 1100ms
+#     active: true
+
+# ---------------------------------------------------------------------------
+# OTA
+# ---------------------------------------------------------------------------
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+# ---------------------------------------------------------------------------
+# RESTART BUTTON (HOME ASSISTANT)
+# ---------------------------------------------------------------------------
+button:
+  - platform: restart
+    name: "AirSensor XXX Restart"  # ← CONFIGURE: match friendly_name
+
+# ---------------------------------------------------------------------------
+# WIFI
+# ---------------------------------------------------------------------------
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  fast_connect: false
+  power_save_mode: none
+  ap:
+    ssid: "AirSensor-XXX-Fallback"      # ← CONFIGURE: unique fallback SSID
+    password: !secret fallback_hotspot_password
+
+# ---------------------------------------------------------------------------
+# HTTP UI (BASIC STATUS)
+# ---------------------------------------------------------------------------
+web_server:
+  port: 80
+
+# ---------------------------------------------------------------------------
+# I2C BUS (SENSORS)
+# ---------------------------------------------------------------------------
+# C6 pinout: SDA=GPIO17, SCL=GPIO18.  SEN55 and SCD4x share this bus.
+i2c:
+  sda: GPIO17
+  scl: GPIO18
+  scan: true
+  id: bus_a
+
+globals:
+  # Persisted user preference: whether the status LED is enabled.
+  # Survives reboots via NVS flash (restore_value: true).
+  - id: g_led_enabled
+    type: bool
+    restore_value: true
+    initial_value: 'true'
+  # True during early boot, before on_boot has run.
+  # Guards the LED switch so that HA state syncs on boot do not overwrite
+  # the persisted g_led_enabled value before it is restored.
+  - id: g_boot_phase
+    type: bool
+    restore_value: false
+    initial_value: 'true'
+
+# ---------------------------------------------------------------------------
+# STATUS LED (WS2812)
+# ---------------------------------------------------------------------------
+# C6 pinout: LED=GPIO0, backlight PWM=GPIO1.
+light:
+  - platform: esp32_rmt_led_strip
+    pin: GPIO0
+    num_leds: 1
+    rgb_order: GRB
+    chipset: WS2812
+    id: status_led
+    internal: true
+    restore_mode: ALWAYS_OFF
+  # Display backlight control (PWM)
+  - platform: monochromatic
+    name: "Display Backlight"
+    output: backlight_pwm
+    id: display_backlight
+    restore_mode: ALWAYS_ON
+
+# ---------------------------------------------------------------------------
+# PWM OUTPUTS
+# ---------------------------------------------------------------------------
+output:
+  - platform: ledc
+    pin: GPIO1
+    id: backlight_pwm
+
+# ---------------------------------------------------------------------------
+# DESIGN ASSETS
+# ---------------------------------------------------------------------------
+font:
+  # Reserved for very large numeric readouts (digits only to save RAM).
+  # Currently not used in the display render — CO2 uses font_medium instead.
+  - file: "gfonts://Montserrat"
+    id: font_huge
+    size: 52
+    glyphs: "0123456789"
+  # Sensor values: CO2, humidity, PM2.5, VOC and time.
+  - file: "gfonts://Montserrat"
+    id: font_medium
+    size: 22
+  # Secondary labels: pollutant names, date, floor label.
+  - file: "gfonts://Montserrat"
+    id: font_small
+    size: 14
+  # Centre status word: EXCELLENT / GOOD / FAIR / POOR / VERY POOR / NO DATA.
+  - file: "gfonts://Montserrat"
+    id: font_status
+    size: 32
+
+# ---------------------------------------------------------------------------
+# SENSORS
+# ---------------------------------------------------------------------------
+sensor:
+  # SEN5x particulate + VOC/NOx + T/H
+  - platform: sen5x
+    pm_1_0:
+      name: "PM 1.0"
+    pm_2_5:
+      name: "PM 2.5"
+      id: pm25
+    pm_4_0:
+      name: "PM 4.0"
+    pm_10_0:
+      name: "PM 10"
+      id: pm10
+    temperature:
+      name: "SEN55 Temperature"
+      id: temperature
+    humidity:
+      name: "SEN55 Humidity"
+      id: humidity
+    voc:
+      name: "VOC Index"
+      id: voc_index
+    nox:
+      name: "NOx Index"
+      id: nox_index
+    update_interval: 10s
+
+  # SCD4x CO2 + T/H
+  - platform: scd4x
+    co2:
+      name: "CO2"
+      id: co2
+    temperature:
+      name: "SCD41 Temperature"
+    humidity:
+      name: "SCD41 Humidity"
+    altitude_compensation: 0m
+    update_interval: 20s
+
+  # DPS310 barometric pressure — remove this block if the sensor is not fitted.
+  - platform: dps310
+    temperature:
+      name: "DPS310 Temperature"
+    pressure:
+      name: "Atmospheric Pressure"
+    update_interval: 60s
+
+# ---------------------------------------------------------------------------
+# SPI BUS & DISPLAY
+# ---------------------------------------------------------------------------
+# C6 pinout: CLK=GPIO22, MOSI=GPIO23, CS=GPIO2, DC=GPIO21, RST=GPIO16.
+spi:
+  clk_pin: GPIO22
+  mosi_pin: GPIO23
+
+display:
+  - platform: mipi_spi
+    model: GC9A01A
+    cs_pin: GPIO2
+    dc_pin: GPIO21
+    reset_pin: GPIO16
+    data_rate: 40MHz
+    color_order: BGR
+    invert_colors: true
+    dimensions:
+      width: 240
+      height: 240
+    transform:
+      swap_xy: true
+      mirror_x: true
+      mirror_y: true
+    update_interval: 150ms
+    lambda: |-
+      // -------------------------------------------------------------------
+      // LAYOUT CONSTANTS (EDIT THESE TO MOVE ELEMENTS)
+      // -------------------------------------------------------------------
+
+      // Screen center
+      const int cx = 120;
+      const int cy = 120;
+      const int fan_cx = 120;
+      const int fan_cy = 125;
+
+      // Time text (top-center)
+      const int x_time = cx;
+      const int y_time = 28;
+
+      // Date text (top-center, below time)
+      const int x_date = cx;
+      const int y_date = 46;
+
+      // Time fallback position if time is invalid
+      const int y_time_fallback = 37;
+
+      // Humidity value (top-right quadrant)
+      const int x_hum = 180;
+      const int y_hum = 65;
+
+      // Humidity label (top-right quadrant, below value)
+      const int x_hum_label = 180;
+      const int y_hum_label = 85;
+
+      // CO2 value (above bar, left)
+      const int x_co2 = 60;
+      const int y_co2 = 65;
+
+      // CO2 label text (below the numeric value)
+      const int x_co2_label = 60;
+      const int y_co2_label = 85;
+
+      // Segmented bar (five levels, circular segments)
+      const int bar_h = 25;
+      const int bar_gap = 8;
+      const int bar_segments = 5;
+      const int bar_circle_r = (bar_h - 1) / 2;
+      const int bar_circle_d = (bar_circle_r * 2) + 1;
+      const int bar_w = (bar_segments * bar_circle_d) + (bar_gap * (bar_segments - 1));
+      const int bar_x = cx - (bar_w / 2);
+      const int bar_y = 100;
+
+      // Animated fan background geometry
+      const float two_pi = 6.2831853f;
+      const float fan_angle_offset = -1.5707963f;
+
+      // Status label (large text)
+      const int status_y = 130;
+
+      // PM2.5 value (bottom-left quadrant)
+      const int x_pm = 60;
+      const int y_pm = 180;
+
+      // PM2.5 label (bottom-left quadrant, below value)
+      const int x_pm_label = 60;
+      const int y_pm_label = 200;
+
+      // VOC value (bottom-right quadrant)
+      const int x_voc = 180;
+      const int y_voc = 180;
+
+      // VOC label (bottom-right quadrant, below value)
+      const int x_voc_label = 180;
+      const int y_voc_label = 200;
+
+      // Floor label (bottom-center, mirrors time position)
+      const int y_floor = 220;
+
+      // -------------------------------------------------------------------
+      // SENSOR VALUES
+      // -------------------------------------------------------------------
+      float co2_v = id(co2).state;
+      float pm25_v = id(pm25).state;
+      float voc_v = id(voc_index).state;
+      float nox_v = id(nox_index).state;
+      float hum_v = id(humidity).state;
+      float pm10_v = id(pm10).state;
+      auto now = id(ha_time).now();
+      const Color dim_gray = airsensor::dim_gray();
+      const airsensor::Readings readings{co2_v, voc_v, nox_v, pm25_v, pm10_v};
+
+      // -------------------------------------------------------------------
+      // COLOR LOGIC (HA DEFAULT THRESHOLDS, WORST-OF)
+      // -------------------------------------------------------------------
+      auto draw_pill = [&](int x, int y, int w, int h, Color c) {
+        // Use an odd pixel height so circles and rectangle align visually
+        int r = (h - 1) / 2;
+        int h2 = (r * 2) + 1;
+        int left = x - (w / 2);
+        int top = y - r;
+        int rect_w = w - (2 * r) - 1;
+        if (rect_w < 0) rect_w = 0;
+        it.filled_rectangle(left + r, top, rect_w, h2, c);
+        it.filled_circle(left + r, top + r, r, c);
+        it.filled_circle(left + w - r - 1, top + r, r, c);
+      };
+      auto draw_fan_blade = [&](float angle, Color c) {
+        const float ux = cosf(angle);
+        const float uy = sinf(angle);
+        const float tx = -uy;
+        const float ty = ux;
+        const float outer_radius = 70.0f;
+        const float outer_half_width = 16.0f;
+
+        const int tip_x = (int) lroundf(fan_cx + (ux * 6.0f) + (tx * 2.0f));
+        const int tip_y = (int) lroundf(fan_cy + (uy * 6.0f) + (ty * 2.0f));
+        const int outer_left_x = (int) lroundf(fan_cx + (ux * outer_radius) + (tx * outer_half_width));
+        const int outer_left_y = (int) lroundf(fan_cy + (uy * outer_radius) + (ty * outer_half_width));
+        const int outer_right_x = (int) lroundf(fan_cx + (ux * outer_radius) - (tx * outer_half_width));
+        const int outer_right_y = (int) lroundf(fan_cy + (uy * outer_radius) - (ty * outer_half_width));
+        const int outer_center_x = (int) lroundf(fan_cx + (ux * outer_radius));
+        const int outer_center_y = (int) lroundf(fan_cy + (uy * outer_radius));
+        const int outer_cap_radius = (int) lroundf(outer_half_width);
+
+        it.filled_triangle(tip_x, tip_y, outer_left_x, outer_left_y, outer_right_x, outer_right_y, c);
+        it.filled_circle(outer_center_x, outer_center_y, outer_cap_radius, c);
+      };
+
+      const int worst_level = airsensor::worst_level(readings);
+      const char* status_txt = airsensor::status_text(worst_level);
+
+      // -------------------------------------------------------------------
+      // BACKGROUND
+      // -------------------------------------------------------------------
+      it.fill(airsensor::background_color());
+
+      // -------------------------------------------------------------------
+      // 1) FAN BACKGROUND
+      // -------------------------------------------------------------------
+      {
+        std::string fan_st = id(fan_speed_select).current_option();
+        if (fan_st != "Off") {
+          const uint32_t fan_period_ms = (fan_st == "High") ? 3000u : 7000u;
+          const uint32_t now_ms = millis();
+          const float fan_phase = (now_ms % fan_period_ms) / (float) fan_period_ms;
+          const float fan_angle = fan_angle_offset + (fan_phase * two_pi);
+
+          const Color fan_color = (fan_st == "High") ? Color(135, 45, 185) : Color(95, 100, 215);
+          const Color hub_color = (fan_st == "High") ? Color(147, 57, 196) : Color(105, 110, 220);
+
+          for (int blade = 0; blade < 3; blade++) {
+            draw_fan_blade(fan_angle + (blade * (two_pi / 3.0f)), fan_color);
+          }
+
+          it.filled_circle(fan_cx, fan_cy, 22, hub_color);
+          it.filled_circle(fan_cx, fan_cy, 8, airsensor::background_color());
+        }
+      }
+
+      // -------------------------------------------------------------------
+      // 2) STATUS LABEL
+      // -------------------------------------------------------------------
+      it.print(cx, status_y, id(font_status), Color::WHITE, TextAlign::TOP_CENTER, status_txt);
+
+      // -------------------------------------------------------------------
+      // 3) SEGMENTED BAR (5 LEVELS)
+      // -------------------------------------------------------------------
+      auto seg_color = [&](int idx) -> Color {
+        return airsensor::level_color(idx);
+      };
+      const int bar_cy = bar_y + bar_circle_r;
+      for (int i = 0; i < bar_segments; i++) {
+        int x = bar_x + i * (bar_circle_d + bar_gap);
+        int cx_seg = x + bar_circle_r;
+        int level_idx = i + 1;
+        if (worst_level >= level_idx) {
+          it.filled_circle(cx_seg, bar_cy, bar_circle_r, seg_color(level_idx));
+        } else {
+          // Inactive segment: subtle outline
+          it.circle(cx_seg, bar_cy, bar_circle_r, dim_gray);
+        }
+      }
+
+      // -------------------------------------------------------------------
+      // 4) CO2 VALUE
+      // -------------------------------------------------------------------
+      if (!isnan(co2_v)) {
+        int co2_lvl = airsensor::co2_level(co2_v);
+        Color co2_color = airsensor::level_color(co2_lvl);
+        if (co2_lvl > 1) {
+          draw_pill(x_co2, y_co2, 70, 22, co2_color);
+        }
+        it.printf(x_co2, y_co2, id(font_medium), Color::WHITE, TextAlign::CENTER, "%.0f", co2_v);
+        it.print(x_co2_label, y_co2_label, id(font_small), dim_gray, TextAlign::CENTER, "CO2 PPM");
+      }
+
+      // -------------------------------------------------------------------
+      // 5) QUADRANT DATA
+      // -------------------------------------------------------------------
+      if (now.is_valid()) {
+        char time_str[6];
+        char date_str[12];
+        now.strftime(time_str, sizeof(time_str), "%H:%M");
+        now.strftime(date_str, sizeof(date_str), "%d-%b-%Y");
+        it.print(x_time, y_time, id(font_medium), Color::WHITE, TextAlign::CENTER, time_str);
+        it.print(x_date, y_date, id(font_small), dim_gray, TextAlign::CENTER, date_str);
+      } else {
+        it.print(x_time, y_time_fallback, id(font_small), dim_gray, TextAlign::CENTER, "NO TIME");
+      }
+
+      it.printf(x_hum, y_hum, id(font_medium), Color::WHITE, TextAlign::CENTER, "%.0f%%", hum_v);
+      it.print(x_hum_label, y_hum_label, id(font_small), dim_gray, TextAlign::CENTER, "HUM");
+
+      int pm25_lvl = airsensor::pm25_level(pm25_v);
+      Color pm25_color = airsensor::level_color(pm25_lvl);
+      if (pm25_lvl > 1) {
+        draw_pill(x_pm, y_pm, 70, 22, pm25_color);
+      }
+      it.printf(x_pm, y_pm, id(font_medium), Color::WHITE, TextAlign::CENTER, "%.0f", pm25_v);
+      it.print(x_pm_label, y_pm_label, id(font_small), dim_gray, TextAlign::CENTER, "PM 2.5");
+
+      int voc_lvl = airsensor::voc_level(voc_v);
+      Color voc_color = airsensor::level_color(voc_lvl);
+      if (voc_lvl > 1) {
+        draw_pill(x_voc, y_voc, 70, 22, voc_color);
+      }
+      it.printf(x_voc, y_voc, id(font_medium), Color::WHITE, TextAlign::CENTER, "%.0f", voc_v);
+      it.print(x_voc_label, y_voc_label, id(font_small), dim_gray, TextAlign::CENTER, "VOC");
+
+      // -------------------------------------------------------------------
+      // 6) FLOOR LABEL  ← CONFIGURE
+      // -------------------------------------------------------------------
+      it.print(cx, y_floor, id(font_small), dim_gray, TextAlign::CENTER, "FLOOR");
+
+# ---------------------------------------------------------------------------
+# FAN SPEED SELECT (DISPLAY ICON CONTROL VIA HOME ASSISTANT)
+# ---------------------------------------------------------------------------
+# Virtual HA entity — does not control a physical fan.
+# The selected value drives the animated fan graphic on the display background:
+#   Off  → no animation
+#   Low  → slow rotation (7 s period), blue-purple blades
+#   High → fast rotation (3 s period), bright-purple blades
+# State is persisted across reboots so the animation survives power cycles.
+select:
+  - platform: template
+    name: "Fan Speed"
+    id: fan_speed_select
+    options:
+      - "Off"
+      - "Low"
+      - "High"
+    initial_option: "Off"
+    restore_value: true
+    optimistic: true
+
+# ---------------------------------------------------------------------------
+# STATUS LED SWITCH (ON/OFF CONTROL VIA HOME ASSISTANT)
+# ---------------------------------------------------------------------------
+# Exposes the status LED as a toggleable HA entity.
+# The g_boot_phase guard prevents HA's initial state-sync from overwriting the
+# persisted preference before on_boot has had a chance to restore it.
+switch:
+  - platform: template
+    name: "Status LED"
+    id: led_switch
+    optimistic: true
+    turn_on_action:
+      - lambda: if (!id(g_boot_phase)) id(g_led_enabled) = true;
+    turn_off_action:
+      - lambda: if (!id(g_boot_phase)) id(g_led_enabled) = false;
+
+# ---------------------------------------------------------------------------
+# PHYSICAL LED SYNC
+# ---------------------------------------------------------------------------
+# Runs every 50 ms to update the WS2812 status LED.
+# Colour reflects the worst AQI level across all sensors (from airsensor_aqi_helpers.h).
+# Brightness follows a sine wave (4 s period, 20 %–100 %) for a breathing effect.
+# millis() is used instead of the loop counter so that timing stays smooth even
+# if the ESPHome main loop is delayed by Wi-Fi or display rendering.
+interval:
+  # Time-based LED breathing: colour from air quality, brightness from millis().
+  # Using millis() makes it immune to loop timing disruptions (same principle as comet).
+  - interval: 50ms
+    then:
+      - lambda: |-
+          if (!id(g_led_enabled)) {
+            auto call = id(status_led).turn_off();
+            call.set_transition_length(0);
+            call.perform();
+            return;
+          }
+
+          float co2_v = id(co2).state;
+          float pm25_v = id(pm25).state;
+          float voc_v = id(voc_index).state;
+          float nox_v = id(nox_index).state;
+          float pm10_v = id(pm10).state;
+          const airsensor::Readings readings{co2_v, voc_v, nox_v, pm25_v, pm10_v};
+          const int worst = airsensor::worst_level(readings);
+          const Color c = airsensor::level_color(worst);
+
+          // Sine wave brightness: 4s cycle, 20%–100%
+          float phase = (millis() % 4000u) / 4000.0f;
+          float brightness = 0.5f - 0.5f * cosf(2.0f * 3.14159265f * phase);
+          brightness = 0.2f + 0.8f * brightness;
+
+          auto call = id(status_led).turn_on();
+          call.set_red(c.red     / 255.0f);
+          call.set_green(c.green / 255.0f);
+          call.set_blue(c.blue   / 255.0f);
+          call.set_brightness(brightness);
+          call.set_transition_length(50);
+          call.perform();

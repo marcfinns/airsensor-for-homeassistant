@@ -1,0 +1,93 @@
+(footprint "Z123_ENCLOSURE_TOP"
+	(version 20241229)
+	(generator "pcbnew")
+	(generator_version "9.0")
+	(layer "F.Cu")
+	(property "Reference" "REF**"
+		(at 0 -0.5 0)
+		(unlocked yes)
+		(layer "User.2")
+		(uuid "e4be4173-3e82-4c25-b7bc-d8c220f550db")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.1)
+			)
+		)
+	)
+	(property "Value" "Z123_ENCLOSURE_TOP"
+		(at 0 1 0)
+		(unlocked yes)
+		(layer "User.2")
+		(uuid "87c5df33-da76-408f-a727-f46433d3ab02")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Datasheet" ""
+		(at 0 0 0)
+		(unlocked yes)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "b69507a2-f220-4a7c-bb7d-676ba3836186")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Description" ""
+		(at 0 0 0)
+		(unlocked yes)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "6db4c80b-fb78-4e00-af5b-4d65b629ee19")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(attr board_only exclude_from_pos_files exclude_from_bom allow_missing_courtyard)
+	(fp_rect
+		(start 0 0)
+		(end 75.6 75.6)
+		(stroke
+			(width 0.1)
+			(type solid)
+		)
+		(fill no)
+		(layer "User.2")
+		(uuid "9c0f8356-c6da-4f83-8699-fffa008207e4")
+	)
+	(fp_text user "${REFERENCE}"
+		(at 0 2.5 0)
+		(unlocked yes)
+		(layer "User.2")
+		(uuid "3cbc374b-cc57-48c6-a2e6-1247bb31f151")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(embedded_fonts no)
+	(model "${KIPRJMOD}/../../mech/Z123_W_TOP.step"
+		(opacity 0.6000)
+		(offset
+			(xyz 37.5 -38 18)
+		)
+		(scale
+			(xyz 1 1 1)
+		)
+		(rotate
+			(xyz -0 -0 -0)
+		)
+	)
+)
