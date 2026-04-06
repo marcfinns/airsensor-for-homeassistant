@@ -92,7 +92,7 @@ Each unit exposes the following entities:
 | Matter (future) | No — hardware limitation | Yes — IEEE 802.15.4 radio |
 | GPIO | Different pinout | Reference pinout |
 
-Two reference templates are provided — `ESPHome_config/AirSensor-C3.yaml` and `AirSensor-C6.yaml` — covering both variants. Real deployment configs live in `ESPHome_config/private/` (gitignored).
+Two reference templates are provided — `ESPHome_config/AirSensor-C3.yaml` and `AirSensor-C6.yaml` — covering both variants.
 
 ---
 
