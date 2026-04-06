@@ -1,6 +1,6 @@
 # AirSensor
 
-A multi-room air quality monitor built around ESPHome and Home Assistant. Each unit sits flush on the wall like a light switch — mains powered, fully self-contained, nothing to charge or manage.
+A multi-room air quality monitor built around ESPHome and Home Assistant. Each unit sits flush on the wall like a light switch — mains powered, fully self-contained, nothing to charge or manage. Built on the ESP32-C6, it is hardware-ready for Matter, making it future-proof as smart home standards evolve.
 
 ![AirSensor unit installed on the wall](Pic.jpeg)
 
